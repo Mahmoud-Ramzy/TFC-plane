@@ -11,7 +11,7 @@ import { observer } from "mobx-react";
 import { useTranslation } from "@plane/i18n";
 import { StartDatePropertyIcon, DueDatePropertyIcon } from "@plane/propel/icons";
 import type { IIssueDisplayProperties, TIssue } from "@plane/types";
-import { getDate, renderFormattedPayloadDate, shouldHighlightIssueDueDate } from "@plane/utils";
+import { getDate, renderFormattedPayloadDateTime, shouldHighlightIssueDueDate } from "@plane/utils";
 // components
 import { DateDropdown } from "@/components/dropdowns/date";
 import { DateRangeDropdown } from "@/components/dropdowns/date-range";
@@ -52,7 +52,7 @@ export const SubIssuesListItemProperties = observer(function SubIssuesListItemPr
   const handleStartDate = (date: Date | null) => {
     if (issue.project_id) {
       updateSubIssue(workspaceSlug, issue.project_id, parentIssueId, issueId, {
-        start_date: date ? renderFormattedPayloadDate(date) : null,
+        start_date: date ? renderFormattedPayloadDateTime(date) : null,
       });
     }
   };
@@ -60,7 +60,7 @@ export const SubIssuesListItemProperties = observer(function SubIssuesListItemPr
   const handleTargetDate = (date: Date | null) => {
     if (issue.project_id) {
       updateSubIssue(workspaceSlug, issue.project_id, parentIssueId, issueId, {
-        target_date: date ? renderFormattedPayloadDate(date) : null,
+        target_date: date ? renderFormattedPayloadDateTime(date) : null,
       });
     }
   };
@@ -78,8 +78,12 @@ export const SubIssuesListItemProperties = observer(function SubIssuesListItemPr
 
   if (!displayProperties) return <></>;
 
-  const maxDate = getDate(issue.target_date);
-  const minDate = getDate(issue.start_date);
+  // Day-level boundaries; the optional wall-clock time is ignored here
+  // (ordering including times is enforced on save).
+  const targetDay = getDate(issue.target_date);
+  const startDay = getDate(issue.start_date);
+  const maxDate = targetDay ? new Date(targetDay.getFullYear(), targetDay.getMonth(), targetDay.getDate()) : undefined;
+  const minDate = startDay ? new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate()) : undefined;
 
   return (
     <div className="relative flex items-center gap-2">
@@ -168,6 +172,7 @@ export const SubIssuesListItemProperties = observer(function SubIssuesListItemPr
       >
         <div className="h-5">
           <DateDropdown
+            enableTime
             value={issue.start_date ?? null}
             onChange={handleStartDate}
             maxDate={maxDate}
@@ -189,6 +194,7 @@ export const SubIssuesListItemProperties = observer(function SubIssuesListItemPr
       >
         <div className="h-5">
           <DateDropdown
+            enableTime
             value={issue?.target_date ?? null}
             onChange={handleTargetDate}
             minDate={minDate}
@@ -207,6 +213,7 @@ export const SubIssuesListItemProperties = observer(function SubIssuesListItemPr
       <WithDisplayPropertiesHOC displayProperties={displayProperties} displayPropertyKey="assignee">
         <div className="h-5 flex-shrink-0">
           <MemberDropdown
+            includeGuests
             value={issue.assignee_ids}
             projectId={issue.project_id ?? undefined}
             onChange={(val) =>

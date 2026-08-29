@@ -73,6 +73,67 @@ export const renderFormattedPayloadDate = (date: Date | string | undefined | nul
   return formattedDate;
 };
 
+/**
+ * @returns {string | undefined} "YYYY-MM-DD" for date-only values or
+ * "YYYY-MM-DDTHH:mm" when the value carries a time, to be used in payloads.
+ * @description Formats a Work Item start/due date for API payloads. The time,
+ * when present, is a timezone-free wall-clock time in 24-hour HH:mm format.
+ * @param {Date | string} date
+ * @example renderFormattedPayloadDateTime("2026-08-24") // "2026-08-24"
+ * @example renderFormattedPayloadDateTime("2026-08-24T14:30") // "2026-08-24T14:30"
+ */
+export const renderFormattedPayloadDateTime = (date: Date | string | undefined | null): string | undefined => {
+  // Parse the date to check if it is valid
+  const parsedDate = getDate(date);
+  // return if undefined
+  if (!parsedDate) return;
+  // Check if the parsed date is valid before formatting
+  if (!isValid(parsedDate)) return; // Return null for invalid dates
+  const hasTime = parsedDate.getHours() !== 0 || parsedDate.getMinutes() !== 0;
+  if (!hasTime) {
+    // Date-only values keep using the existing payload formatter.
+    return renderFormattedPayloadDate(parsedDate);
+  }
+  // Reuse the existing 24-hour time formatter for the HH:mm portion.
+  return `${format(parsedDate, "yyyy-MM-dd")}T${renderFormattedTime(parsedDate)}`;
+};
+
+/**
+ * Returns true when a Work Item start/due value carries a wall-clock
+ * HH:mm portion. Midnight is treated as "no time" per existing semantics.
+ */
+export const workItemValueHasTime = (date: string | Date | undefined | null): boolean => {
+  const parsedDate = getDate(date);
+  if (!parsedDate || !isValid(parsedDate)) return false;
+  return parsedDate.getHours() !== 0 || parsedDate.getMinutes() !== 0;
+};
+
+/**
+ * @returns {string} "Aug 24, 2026" for date-only Work Item values or
+ * "Aug 24, 2026, 2:30 PM" when the value carries a time.
+ * @description Display formatter for Work Item Start/Due dates. The stored
+ * wall-clock time is shown verbatim - these values are timezone-free by
+ * design (default operating zone Africa/Cairo) and are never converted to UTC.
+ * @param {string | Date} date
+ * @param {object} options.timeFormat // default 12-hour
+ * @example renderWorkItemDateTime("2026-08-24") // "Aug 24, 2026"
+ * @example renderWorkItemDateTime("2026-08-24T14:30") // "Aug 24, 2026, 2:30 PM"
+ */
+export const renderWorkItemDateTime = (
+  date: string | Date | undefined | null,
+  options?: { timeFormat?: "12-hour" | "24-hour" }
+): string => {
+  const parsedDate = getDate(date);
+  if (!parsedDate || !isValid(parsedDate)) return "";
+  const formattedDate = format(parsedDate, "MMM dd, yyyy");
+  if (!workItemValueHasTime(parsedDate)) return formattedDate;
+  // Reuse the existing 24-hour formatter; the 12-hour default matches the
+  // established "h:mm a" display pattern without zero-padded hours.
+  const formattedTime =
+    options?.timeFormat === "24-hour" ? renderFormattedTime(parsedDate) : format(parsedDate, "h:mm a");
+  return `${formattedDate}, ${formattedTime}`;
+};
+
 // Format Time Helpers
 /**
  * @returns {string} formatted date in the format of hh:mm a or HH:mm
@@ -280,6 +341,24 @@ export const checkIfDatesAreEqual = (
  * @param date
  * @returns date or undefined
  */
+/**
+ * Parses the "HH:mm[:ss]" portion of a Work Item date-time string.
+ * Returns null when the portion is absent or malformed so callers can fall
+ * back to date-only semantics. Seconds are validated but truncated: Work Item
+ * times carry minute precision.
+ */
+const parseWorkitemTimePortion = (value: string): { hours: number; minutes: number } | null => {
+  if (!value) return null;
+  const parts = value.split(":");
+  if (parts.length < 2) return null;
+  const [hoursString, minutesString] = parts;
+  if (!/^\d{2}$/.test(hoursString) || !/^\d{2}$/.test(minutesString)) return null;
+  const hours = Number(hoursString);
+  const minutes = Number(minutesString);
+  if (hours > 23 || minutes > 59) return null;
+  return { hours, minutes };
+};
+
 export const getDate = (date: string | Date | undefined | null): Date | undefined => {
   try {
     if (!date || date === "") return;
@@ -291,6 +370,16 @@ export const getDate = (date: string | Date | undefined | null): Date | undefine
     const month = parseInt(monthString);
     const day = parseInt(dayString);
     if (!isNumber(year) || !isNumber(month) || !isNumber(day)) return;
+
+    // Work Item date-times ("2026-08-24T14:30") carry an optional timezone-free
+    // wall-clock time that must survive parsing. Malformed or partial time
+    // portions fall back to the existing date-only (midnight) behavior.
+    if (date.length > 10 && (date[10] === "T" || date[10] === " ")) {
+      const timePortion = parseWorkitemTimePortion(date.substring(11));
+      if (timePortion) {
+        return new Date(year, month - 1, day, timePortion.hours, timePortion.minutes);
+      }
+    }
 
     return new Date(year, month - 1, day);
   } catch (_e) {

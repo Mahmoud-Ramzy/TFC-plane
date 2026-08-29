@@ -21,7 +21,7 @@ import {
   EstimatePropertyIcon,
   ParentPropertyIcon,
 } from "@plane/propel/icons";
-import { cn, getDate, renderFormattedPayloadDate, shouldHighlightIssueDueDate } from "@plane/utils";
+import { cn, getDate, renderFormattedPayloadDateTime, shouldHighlightIssueDueDate } from "@plane/utils";
 // components
 import { DateDropdown } from "@/components/dropdowns/date";
 import { EstimateDropdown } from "@/components/dropdowns/estimate";
@@ -71,11 +71,16 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
   const projectDetails = getProjectById(issue.project_id);
   const stateDetails = getStateById(issue.state_id);
 
-  const minDate = issue.start_date ? getDate(issue.start_date) : null;
-  minDate?.setDate(minDate.getDate());
+  // Day-level picker boundaries; the optional wall-clock time is ignored here
+  // (ordering including times is enforced on save).
+  const getDayBoundary = (value: string | null): Date | null => {
+    const parsedDate = value ? getDate(value) : null;
+    return parsedDate ? new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate()) : null;
+  };
 
-  const maxDate = issue.target_date ? getDate(issue.target_date) : null;
-  maxDate?.setDate(maxDate.getDate());
+  const minDate = getDayBoundary(issue.start_date);
+
+  const maxDate = getDayBoundary(issue.target_date);
 
   return (
     <>
@@ -100,6 +105,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
 
             <SidebarPropertyListItem icon={MembersPropertyIcon} label={t("common.assignees")}>
               <MemberDropdown
+                includeGuests
                 value={issue?.assignee_ids ?? undefined}
                 onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { assignee_ids: val })}
                 disabled={!isEditable}
@@ -139,11 +145,12 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
 
             <SidebarPropertyListItem icon={StartDatePropertyIcon} label={t("common.order_by.start_date")}>
               <DateDropdown
+                enableTime
                 placeholder={t("issue.add.start_date")}
                 value={issue.start_date}
                 onChange={(val) =>
                   issueOperations.update(workspaceSlug, projectId, issueId, {
-                    start_date: val ? renderFormattedPayloadDate(val) : null,
+                    start_date: val ? renderFormattedPayloadDateTime(val) : null,
                   })
                 }
                 maxDate={maxDate ?? undefined}
@@ -160,11 +167,12 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
             <SidebarPropertyListItem icon={DueDatePropertyIcon} label={t("common.order_by.due_date")}>
               <div className="flex w-full items-center gap-2">
                 <DateDropdown
+                  enableTime
                   placeholder={t("issue.add.due_date")}
                   value={issue.target_date}
                   onChange={(val) =>
                     issueOperations.update(workspaceSlug, projectId, issueId, {
-                      target_date: val ? renderFormattedPayloadDate(val) : null,
+                      target_date: val ? renderFormattedPayloadDateTime(val) : null,
                     })
                   }
                   minDate={minDate ?? undefined}

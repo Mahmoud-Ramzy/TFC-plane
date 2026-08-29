@@ -288,7 +288,10 @@ USE_I18N = True
 
 # Timezones
 USE_TZ = True
-TIME_ZONE = "UTC"
+# Work Item start/due dates are stored as timezone-free wall-clock values; the
+# default operating zone is Cairo. Timezone-aware timestamps continue to be
+# stored in UTC (USE_TZ above) regardless of this display/default zone.
+TIME_ZONE = "Africa/Cairo"
 
 # Default Auto Field
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

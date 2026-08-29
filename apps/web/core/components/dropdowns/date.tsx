@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { createPortal } from "react-dom";
 import { usePopper } from "react-popper";
@@ -15,7 +15,7 @@ import type { Matcher } from "@plane/propel/calendar";
 import { Calendar } from "@plane/propel/calendar";
 import { CloseIcon } from "@plane/propel/icons";
 import { ComboDropDown } from "@plane/ui";
-import { cn, renderFormattedDate, getDate } from "@plane/utils";
+import { cn, renderWorkItemDateTime, renderFormattedDate, getDate } from "@plane/utils";
 // helpers
 // hooks
 import { useUserProfile } from "@/hooks/store/user";
@@ -30,6 +30,8 @@ import type { TDropdownProps } from "./types";
 type Props = TDropdownProps & {
   clearIconClassName?: string;
   defaultOpen?: boolean;
+  /** Enables the optional timezone-free HH:mm time picker under the calendar. */
+  enableTime?: boolean;
   optionsClassName?: string;
   icon?: React.ReactNode;
   isClearable?: boolean;
@@ -44,6 +46,19 @@ type Props = TDropdownProps & {
   labelClassName?: string;
 };
 
+/** Returns "HH:mm" for wall-clock times, or "" when no time is set (midnight). */
+const getTimeInputValue = (date: Date | undefined): string => {
+  if (!date || (date.getHours() === 0 && date.getMinutes() === 0)) return "";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+};
+
+/** Returns a copy of the date with the given wall-clock hours/minutes applied. */
+const applyTimeToDate = (base: Date, hours: number, minutes: number): Date =>
+  new Date(base.getFullYear(), base.getMonth(), base.getDate(), hours, minutes);
+
+/** Returns a copy of the date with the time portion removed. */
+const stripTimeFromDate = (base: Date): Date => new Date(base.getFullYear(), base.getMonth(), base.getDate());
+
 export const DateDropdown = observer(function DateDropdown(props: Props) {
   const {
     buttonClassName = "",
@@ -52,6 +67,7 @@ export const DateDropdown = observer(function DateDropdown(props: Props) {
     className = "",
     clearIconClassName = "",
     defaultOpen = false,
+    enableTime = false,
     optionsClassName = "",
     closeOnSelect = true,
     disabled = false,
@@ -96,6 +112,15 @@ export const DateDropdown = observer(function DateDropdown(props: Props) {
 
   const isDateSelected = value && value.toString().trim() !== "";
 
+  // Work Item time visibility: when the picker is time-enabled, surface the
+  // selected wall-clock time on the closed button as well. Date-only values
+  // keep rendering exactly as before.
+  const displayLabel = value
+    ? enableTime
+      ? renderWorkItemDateTime(value)
+      : renderFormattedDate(value, formatToken)
+    : undefined;
+
   const onOpen = () => {
     if (referenceElement) referenceElement.focus();
   };
@@ -110,10 +135,55 @@ export const DateDropdown = observer(function DateDropdown(props: Props) {
 
   const dropdownOnChange = (val: Date | null) => {
     onChange(val);
-    if (closeOnSelect) {
+    // With the time picker enabled the popover stays open so the user can
+    // adjust the time after picking a date.
+    if (closeOnSelect && !enableTime) {
       handleClose();
       referenceElement?.blur();
     }
+  };
+
+  // Optional time support (Work Item start/due dates). The time is treated as
+  // a timezone-free wall-clock value carried on the existing Date object.
+  const [timeInputValue, setTimeInputValue] = useState("");
+
+  useEffect(() => {
+    // Re-initialize the native time input from the current value whenever the
+    // popover opens or the external value changes while it is open.
+    if (!enableTime || !isOpen) return;
+    setTimeInputValue(getTimeInputValue(getDate(value)));
+  }, [enableTime, isOpen, value]);
+
+  const handleCalendarSelect = (date: Date | undefined) => {
+    const pickedDate = date ?? null;
+    if (pickedDate && enableTime && timeInputValue) {
+      const [hours, minutes] = timeInputValue.split(":").map(Number);
+      if (!Number.isNaN(hours) && !Number.isNaN(minutes)) {
+        // Preserve an already-entered time when a new date is picked.
+        dropdownOnChange(applyTimeToDate(pickedDate, hours, minutes));
+        return;
+      }
+    }
+    dropdownOnChange(pickedDate);
+  };
+
+  const handleTimeInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextTimeValue = event.target.value;
+    setTimeInputValue(nextTimeValue);
+    const currentDate = getDate(value);
+    if (!nextTimeValue || !currentDate) return;
+    const [hours, minutes] = nextTimeValue.split(":").map(Number);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return;
+    onChange(applyTimeToDate(currentDate, hours, minutes));
+  };
+
+  const handleRemoveTime = () => {
+    setTimeInputValue("");
+    const currentDate = getDate(value);
+    if (!currentDate) return;
+    // Preserve the selected date, removing only the time portion. The
+    // popover stays open so the user can pick a new time right away.
+    onChange(stripTimeFromDate(currentDate));
   };
 
   const disabledDays: Matcher[] = [];
@@ -139,7 +209,7 @@ export const DateDropdown = observer(function DateDropdown(props: Props) {
         className={buttonClassName}
         isActive={isOpen}
         tooltipHeading={placeholder}
-        tooltipContent={value ? renderFormattedDate(value, formatToken) : "None"}
+        tooltipContent={displayLabel ?? "None"}
         showTooltip={showTooltip}
         variant={buttonVariant}
         renderToolTipByDefault={renderByDefault}
@@ -147,7 +217,7 @@ export const DateDropdown = observer(function DateDropdown(props: Props) {
         {!hideIcon && icon}
         {BUTTON_VARIANTS_WITH_TEXT.includes(buttonVariant) && (
           <span className={cn("flex-grow truncate text-left text-body-xs-medium", labelClassName)}>
-            {value ? renderFormattedDate(value, formatToken) : placeholder}
+            {displayLabel ?? placeholder}
           </span>
         )}
         {isClearable && !disabled && isDateSelected && (
@@ -196,9 +266,7 @@ export const DateDropdown = observer(function DateDropdown(props: Props) {
                 captionLayout="dropdown"
                 selected={getDate(value)}
                 defaultMonth={getDate(value)}
-                onSelect={(date: Date | undefined) => {
-                  dropdownOnChange(date ?? null);
-                }}
+                onSelect={handleCalendarSelect}
                 showOutsideDays
                 initialFocus
                 disabled={disabledDays}
@@ -206,6 +274,30 @@ export const DateDropdown = observer(function DateDropdown(props: Props) {
                 fixedWeeks
                 weekStartsOn={startOfWeek}
               />
+              {enableTime && (
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-subtle pt-2">
+                  <input
+                    type="time"
+                    step={60}
+                    aria-label="Time"
+                    title={isDateSelected ? "Time" : "Select a date first"}
+                    value={timeInputValue}
+                    disabled={disabled || !isDateSelected}
+                    onChange={handleTimeInputChange}
+                    className="h-7 rounded-md border-[0.5px] border-strong bg-surface-1 px-2 text-body-xs-regular outline-none placeholder:text-placeholder focus:ring-1 focus:ring-accent-strong disabled:cursor-not-allowed disabled:text-placeholder"
+                  />
+                  {!disabled && timeInputValue !== "" && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveTime}
+                      className="flex flex-shrink-0 items-center gap-1 rounded-sm px-1 py-0.5 text-body-xs-medium text-secondary transition-colors hover:bg-layer-1 hover:text-primary"
+                    >
+                      <CloseIcon className="h-2.5 w-2.5" />
+                      Remove time
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </Combobox.Options>,
           document.body

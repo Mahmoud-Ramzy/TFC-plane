@@ -81,6 +81,7 @@ export const RelationIssueProperty = observer(function RelationIssueProperty(pro
 
       <div className="h-5 flex-shrink-0">
         <MemberDropdown
+          includeGuests
           value={issue.assignee_ids}
           projectId={issue.project_id ?? undefined}
           onChange={handleAssigneeChange}

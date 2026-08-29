@@ -23,7 +23,7 @@ type TMemberDropdownProps = {
 } & MemberDropdownProps;
 
 export const MemberDropdown = observer(function MemberDropdown(props: TMemberDropdownProps) {
-  const { memberIds: propsMemberIds, projectId } = props;
+  const { memberIds: propsMemberIds, projectId, includeGuests = false } = props;
   // router params
   const { workspaceSlug } = useParams();
   // store hooks
@@ -36,7 +36,7 @@ export const MemberDropdown = observer(function MemberDropdown(props: TMemberDro
   const memberIds = propsMemberIds
     ? propsMemberIds
     : projectId
-      ? getProjectMemberIds(projectId, false)
+      ? getProjectMemberIds(projectId, includeGuests)
       : workspaceMemberIds;
 
   const onDropdownOpen = () => {

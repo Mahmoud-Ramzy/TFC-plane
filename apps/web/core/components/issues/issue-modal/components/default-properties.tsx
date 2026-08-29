@@ -15,7 +15,7 @@ import { ParentPropertyIcon } from "@plane/propel/icons";
 import type { ISearchIssueResponse, TIssue } from "@plane/types";
 // ui
 import { CustomMenu } from "@plane/ui";
-import { getDate, renderFormattedPayloadDate, getTabIndex } from "@plane/utils";
+import { getDate, renderFormattedPayloadDateTime, getTabIndex } from "@plane/utils";
 // components
 import { CycleDropdown } from "@/components/dropdowns/cycle";
 import { DateDropdown } from "@/components/dropdowns/date";
@@ -77,11 +77,16 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
   const canCreateLabel =
     projectId && allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId);
 
-  const minDate = getDate(startDate);
-  minDate?.setDate(minDate.getDate());
+  // Day-level picker boundaries; the optional wall-clock time is ignored here
+  // (ordering including times is enforced on save).
+  const getDayBoundary = (value: string | Date | null | undefined): Date | null => {
+    const parsedDate = value ? getDate(value) : null;
+    return parsedDate ? new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate()) : null;
+  };
 
-  const maxDate = getDate(targetDate);
-  maxDate?.setDate(maxDate.getDate());
+  const minDate = getDayBoundary(startDate);
+
+  const maxDate = getDayBoundary(targetDate);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -127,6 +132,7 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
         render={({ field: { value, onChange } }) => (
           <div className="h-7">
             <MemberDropdown
+              includeGuests
               projectId={projectId ?? undefined}
               value={value}
               onChange={(assigneeIds) => {
@@ -166,9 +172,10 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
         render={({ field: { value, onChange } }) => (
           <div className="h-7">
             <DateDropdown
+              enableTime
               value={value}
               onChange={(date) => {
-                onChange(date ? renderFormattedPayloadDate(date) : null);
+                onChange(date ? renderFormattedPayloadDateTime(date) : null);
                 handleFormChange();
               }}
               buttonVariant="border-with-text"
@@ -185,9 +192,10 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
         render={({ field: { value, onChange } }) => (
           <div className="h-7">
             <DateDropdown
+              enableTime
               value={value}
               onChange={(date) => {
-                onChange(date ? renderFormattedPayloadDate(date) : null);
+                onChange(date ? renderFormattedPayloadDateTime(date) : null);
                 handleFormChange();
               }}
               buttonVariant="border-with-text"

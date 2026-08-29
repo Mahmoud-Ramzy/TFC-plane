@@ -20,7 +20,7 @@ import type { ICycle } from "@plane/types";
 import { EIssuesStoreType } from "@plane/types";
 // ui
 import { Loader, Avatar } from "@plane/ui";
-import { cn, renderFormattedDate, renderFormattedDateWithoutYear, getFileURL } from "@plane/utils";
+import { cn, renderWorkItemDateTime, getFileURL } from "@plane/utils";
 // assets
 import darkAssigneeAsset from "@/app/assets/empty-state/active-cycle/assignee-dark.webp?url";
 import lightAssigneeAsset from "@/app/assets/empty-state/active-cycle/assignee-light.webp?url";
@@ -225,13 +225,11 @@ export const ActiveCycleStats = observer(function ActiveCycleStats(props: Active
                             {issue.target_date && (
                               <Tooltip
                                 tooltipHeading="Target Date"
-                                tooltipContent={renderFormattedDate(issue.target_date)}
+                                tooltipContent={renderWorkItemDateTime(issue.target_date)}
                               >
                                 <div className="flex h-full cursor-pointer items-center gap-1.5 truncate rounded-sm bg-layer-1 px-2 py-0.5 text-11 group-hover:bg-surface-1">
                                   <CalendarCheck className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate text-11">
-                                    {renderFormattedDateWithoutYear(issue.target_date)}
-                                  </span>
+                                  <span className="truncate text-11">{renderWorkItemDateTime(issue.target_date)}</span>
                                 </div>
                               </Tooltip>
                             )}

@@ -35,7 +35,7 @@ import {
 } from "@plane/propel/icons";
 import { Tooltip } from "@plane/propel/tooltip";
 import type { IIssueActivity } from "@plane/types";
-import { renderFormattedDate, generateWorkItemLink, capitalizeFirstLetter } from "@plane/utils";
+import { renderFormattedDate, renderWorkItemDateTime, generateWorkItemLink, capitalizeFirstLetter } from "@plane/utils";
 // helpers
 import { useLabel } from "@/hooks/store/use-label";
 import { usePlatformOS } from "@/hooks/use-platform-os";
@@ -688,7 +688,7 @@ const activityDetails: {
           <>
             set the start date to{" "}
             <span className="font-medium whitespace-nowrap text-primary">
-              {renderFormattedDate(activity.new_value)}
+              {renderWorkItemDateTime(activity.new_value)}
             </span>
             {showIssue && (
               <>
@@ -720,7 +720,7 @@ const activityDetails: {
           <>
             set the due date to{" "}
             <span className="font-medium whitespace-nowrap text-primary">
-              {renderFormattedDate(activity.new_value)}
+              {renderWorkItemDateTime(activity.new_value)}
             </span>
             {showIssue && (
               <>

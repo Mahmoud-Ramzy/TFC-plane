@@ -9,7 +9,7 @@ import { observer } from "mobx-react";
 import { DueDatePropertyIcon } from "@plane/propel/icons";
 // types
 import type { TIssue } from "@plane/types";
-import { cn, getDate, renderFormattedPayloadDate, shouldHighlightIssueDueDate } from "@plane/utils";
+import { cn, getDate, renderFormattedPayloadDateTime, shouldHighlightIssueDueDate } from "@plane/utils";
 // components
 import { DateDropdown } from "@/components/dropdowns/date";
 // helpers
@@ -29,14 +29,18 @@ export const SpreadsheetDueDateColumn = observer(function SpreadsheetDueDateColu
   const { getStateById } = useProjectState();
   // derived values
   const stateDetails = getStateById(issue.state_id);
+  // Day-level boundary; the optional wall-clock time is ignored here.
+  const startDay = getDate(issue.start_date);
+  const minDate = startDay ? new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate()) : undefined;
 
   return (
     <div className="h-11 border-b-[0.5px] border-subtle">
       <DateDropdown
+        enableTime
         value={issue.target_date}
-        minDate={getDate(issue.start_date)}
+        minDate={minDate}
         onChange={(data) => {
-          const targetDate = data ? renderFormattedPayloadDate(data) : null;
+          const targetDate = data ? renderFormattedPayloadDateTime(data) : null;
           onChange(
             issue,
             { target_date: targetDate },

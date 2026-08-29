@@ -8,6 +8,8 @@ export type MemberDropdownProps = TDropdownProps & {
   tooltipContent?: string;
   onClose?: () => void;
   showUserDetails?: boolean;
+  /** When true, invitation-only project Guests are listed as assignable candidates. Defaults to false. */
+  includeGuests?: boolean;
 } & (
     | {
         multiple: false;

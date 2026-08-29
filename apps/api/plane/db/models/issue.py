@@ -13,7 +13,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction, connection
 from django.utils import timezone
 from django.db.models import Q
-from django import apps
+from django.apps import apps
 
 # Module imports
 from plane.utils.html_processor import strip_tags
@@ -145,7 +145,9 @@ class Issue(ChangeTrackerMixin, ProjectBaseModel):
         default="none",
     )
     start_date = models.DateField(null=True, blank=True)
+    start_time = models.TimeField(null=True, blank=True)
     target_date = models.DateField(null=True, blank=True)
+    target_time = models.TimeField(null=True, blank=True)
     assignees = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         blank=True,
@@ -694,7 +696,9 @@ class IssueVersion(ProjectBaseModel):
         default="none",
     )
     start_date = models.DateField(null=True, blank=True)
+    start_time = models.TimeField(null=True, blank=True)
     target_date = models.DateField(null=True, blank=True)
+    target_time = models.TimeField(null=True, blank=True)
     assignees = ArrayField(models.UUIDField(), blank=True, default=list)
     sequence_id = models.IntegerField(default=1, verbose_name="Issue Sequence ID")
     labels = ArrayField(models.UUIDField(), blank=True, default=list)
@@ -749,13 +753,17 @@ class IssueVersion(ProjectBaseModel):
 
             cls.objects.create(
                 issue=issue,
+                workspace_id=issue.workspace_id,
+                project_id=issue.project_id,
                 parent=issue.parent_id,
                 state=issue.state_id,
                 estimate_point=issue.estimate_point_id,
                 name=issue.name,
                 priority=issue.priority,
                 start_date=issue.start_date,
+                start_time=issue.start_time,
                 target_date=issue.target_date,
+                target_time=issue.target_time,
                 assignees=list(IssueAssignee.objects.filter(issue=issue).values_list("assignee_id", flat=True)),
                 sequence_id=issue.sequence_id,
                 labels=list(IssueLabel.objects.filter(issue=issue).values_list("label_id", flat=True)),
@@ -767,7 +775,7 @@ class IssueVersion(ProjectBaseModel):
                 external_id=issue.external_id,
                 type=issue.type_id,
                 cycle=cycle_issue.cycle_id if cycle_issue else None,
-                modules=list(Module.objects.filter(issue=issue).values_list("id", flat=True)),
+                modules=list(Module.objects.filter(issue_module__issue=issue).values_list("id", flat=True)),
                 properties={},
                 meta={},
                 last_saved_at=timezone.now(),

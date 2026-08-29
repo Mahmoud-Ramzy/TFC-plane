@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+# Python imports
+from datetime import datetime
+
 # Django imports
 from django.utils import timezone
 from lxml import html
@@ -11,6 +14,7 @@ from django.db import IntegrityError
 from rest_framework import serializers
 
 # Module imports
+from plane.app.permissions import ROLE
 from plane.db.models import (
     Issue,
     IssueType,
@@ -37,6 +41,12 @@ from .cycle import CycleLiteSerializer, CycleSerializer
 from .module import ModuleLiteSerializer, ModuleSerializer
 from .state import StateLiteSerializer
 from .user import UserLiteSerializer
+
+from plane.utils.workitem_datetime import (
+    WORKITEM_DATETIME_FIELD_PAIRS,
+    merge_workitem_datetime_representation,
+    split_workitem_datetime_payload,
+)
 
 # Django imports
 from django.core.exceptions import ValidationError
@@ -72,13 +82,28 @@ class IssueSerializer(BaseSerializer):
         read_only_fields = ["id", "workspace", "project", "updated_by", "updated_at", "completed_at"]
         exclude = ["description_json", "description_stripped"]
 
+    def to_internal_value(self, data):
+        return super().to_internal_value(split_workitem_datetime_payload(data))
+
     def validate(self, data):
-        if (
-            data.get("start_date", None) is not None
-            and data.get("target_date", None) is not None
-            and data.get("start_date", None) > data.get("target_date", None)
-        ):
-            raise serializers.ValidationError("Start date cannot exceed target date")
+        # Effective start/due values fall back to the persisted instance so
+        # partial updates are validated against the complete picture.
+        effective = {}
+        for date_key, time_key in WORKITEM_DATETIME_FIELD_PAIRS:
+            effective[date_key] = data.get(date_key, getattr(self.instance, date_key, None))
+            effective[time_key] = data.get(time_key, getattr(self.instance, time_key, None))
+
+        start_date, start_time = effective["start_date"], effective["start_time"]
+        target_date, target_time = effective["target_date"], effective["target_time"]
+
+        if start_date is not None and target_date is not None:
+            if start_time is not None and target_time is not None:
+                # Both sides carry a time: compare full date + time.
+                if datetime.combine(start_date, start_time) > datetime.combine(target_date, target_time):
+                    raise serializers.ValidationError("Start date cannot exceed target date")
+            elif start_date > target_date:
+                # Either side has no time: preserve the existing date-only comparison.
+                raise serializers.ValidationError("Start date cannot exceed target date")
 
         try:
             if data.get("description_html", None) is not None:
@@ -108,7 +133,7 @@ class IssueSerializer(BaseSerializer):
             data["assignees"] = ProjectMember.objects.filter(
                 project_id=self.context.get("project_id"),
                 is_active=True,
-                role__gte=15,
+                role__gte=ROLE.GUEST.value,
                 member_id__in=data["assignees"],
             ).values_list("member_id", flat=True)
 
@@ -317,7 +342,8 @@ class IssueSerializer(BaseSerializer):
                     str(label) for label in IssueLabel.objects.filter(issue=instance).values_list("label_id", flat=True)
                 ]
 
-        return data
+        # Merge start/due time columns back into combined ISO date-time strings.
+        return merge_workitem_datetime_representation(data, instance)
 
 
 class IssueLiteSerializer(BaseSerializer):
@@ -850,6 +876,9 @@ class IssueExpandSerializer(BaseSerializer):
             "updated_at",
             "completed_at",
         ]
+
+    def to_representation(self, instance):
+        return merge_workitem_datetime_representation(super().to_representation(instance), instance)
 
 
 class IssueAttachmentUploadSerializer(serializers.Serializer):

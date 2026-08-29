@@ -11,7 +11,7 @@ import { useParams } from "next/navigation";
 import { DueDatePropertyIcon, StartDatePropertyIcon } from "@plane/propel/icons";
 // types
 import type { TIssuePriorities, TWorkspaceDraftIssue } from "@plane/types";
-import { getDate, renderFormattedPayloadDate, shouldHighlightIssueDueDate } from "@plane/utils";
+import { getDate, renderFormattedPayloadDateTime, shouldHighlightIssueDueDate } from "@plane/utils";
 // components
 import { CycleDropdown } from "@/components/dropdowns/cycle";
 import { DateDropdown } from "@/components/dropdowns/date";
@@ -107,14 +107,14 @@ export const DraftIssueProperties = observer(function DraftIssueProperties(props
     issue?.project_id &&
     updateIssue &&
     updateIssue(issue.project_id, issue.id, {
-      start_date: date ? (renderFormattedPayloadDate(date) ?? undefined) : undefined,
+      start_date: date ? (renderFormattedPayloadDateTime(date) ?? undefined) : undefined,
     });
 
   const handleTargetDate = (date: Date | null) =>
     issue?.project_id &&
     updateIssue &&
     updateIssue(issue.project_id, issue.id, {
-      target_date: date ? (renderFormattedPayloadDate(date) ?? undefined) : undefined,
+      target_date: date ? (renderFormattedPayloadDateTime(date) ?? undefined) : undefined,
     });
 
   const handleEstimate = (value: string | undefined) =>
@@ -128,11 +128,13 @@ export const DraftIssueProperties = observer(function DraftIssueProperties(props
       return label ? [label] : [];
     }) || [];
 
-  const minDate = getDate(issue.start_date);
-  minDate?.setDate(minDate.getDate());
+  // Day-level picker boundaries; the optional wall-clock time is ignored here
+  // (ordering including times is enforced on save).
+  const startDay = getDate(issue.start_date);
+  const minDate = startDay ? new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate()) : undefined;
 
-  const maxDate = getDate(issue.target_date);
-  maxDate?.setDate(maxDate.getDate());
+  const targetDay = getDate(issue.target_date);
+  const maxDate = targetDay ? new Date(targetDay.getFullYear(), targetDay.getMonth(), targetDay.getDate()) : undefined;
 
   const handleEventPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -181,6 +183,7 @@ export const DraftIssueProperties = observer(function DraftIssueProperties(props
       {/* start date */}
       <div className="h-5" onClick={handleEventPropagation}>
         <DateDropdown
+          enableTime
           value={issue.start_date ?? null}
           onChange={handleStartDate}
           maxDate={maxDate}
@@ -196,6 +199,7 @@ export const DraftIssueProperties = observer(function DraftIssueProperties(props
       {/* target/due date */}
       <div className="h-5" onClick={handleEventPropagation}>
         <DateDropdown
+          enableTime
           value={issue?.target_date ?? null}
           onChange={handleTargetDate}
           minDate={minDate}
@@ -215,6 +219,7 @@ export const DraftIssueProperties = observer(function DraftIssueProperties(props
       {/* assignee */}
       <div className="h-5" onClick={handleEventPropagation}>
         <MemberDropdown
+          includeGuests
           projectId={issue?.project_id}
           value={issue?.assignee_ids}
           onChange={handleAssignee}

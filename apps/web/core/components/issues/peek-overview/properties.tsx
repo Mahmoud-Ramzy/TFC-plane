@@ -21,7 +21,7 @@ import {
   EstimatePropertyIcon,
   ParentPropertyIcon,
 } from "@plane/propel/icons";
-import { cn, getDate, renderFormattedPayloadDate, shouldHighlightIssueDueDate } from "@plane/utils";
+import { cn, getDate, renderFormattedPayloadDateTime, shouldHighlightIssueDueDate } from "@plane/utils";
 // components
 import { DateDropdown } from "@/components/dropdowns/date";
 import { EstimateDropdown } from "@/components/dropdowns/estimate";
@@ -68,11 +68,13 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
   const isEstimateEnabled = projectDetails?.estimate;
   const stateDetails = getStateById(issue.state_id);
 
-  const minDate = getDate(issue.start_date);
-  minDate?.setDate(minDate.getDate());
+  // Day-level picker boundaries; the optional wall-clock time is ignored here
+  // (ordering including times is enforced on save).
+  const startDay = getDate(issue.start_date);
+  const minDate = startDay ? new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate()) : undefined;
 
-  const maxDate = getDate(issue.target_date);
-  maxDate?.setDate(maxDate.getDate());
+  const targetDay = getDate(issue.target_date);
+  const maxDate = targetDay ? new Date(targetDay.getFullYear(), targetDay.getMonth(), targetDay.getDate()) : undefined;
 
   return (
     <div>
@@ -95,6 +97,7 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
 
         <SidebarPropertyListItem icon={MembersPropertyIcon} label={t("common.assignees")}>
           <MemberDropdown
+            includeGuests
             value={issue?.assignee_ids ?? undefined}
             onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { assignee_ids: val })}
             disabled={disabled}
@@ -141,10 +144,11 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
 
         <SidebarPropertyListItem icon={StartDatePropertyIcon} label={t("common.order_by.start_date")}>
           <DateDropdown
+            enableTime
             value={issue.start_date}
             onChange={(val) =>
               issueOperations.update(workspaceSlug, projectId, issueId, {
-                start_date: val ? renderFormattedPayloadDate(val) : null,
+                start_date: val ? renderFormattedPayloadDateTime(val) : null,
               })
             }
             placeholder={t("issue.add.start_date")}
@@ -162,10 +166,11 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
         <SidebarPropertyListItem icon={DueDatePropertyIcon} label={t("common.order_by.due_date")}>
           <div className="flex w-full items-center gap-2">
             <DateDropdown
+              enableTime
               value={issue.target_date}
               onChange={(val) =>
                 issueOperations.update(workspaceSlug, projectId, issueId, {
-                  target_date: val ? renderFormattedPayloadDate(val) : null,
+                  target_date: val ? renderFormattedPayloadDateTime(val) : null,
                 })
               }
               placeholder={t("issue.add.due_date")}

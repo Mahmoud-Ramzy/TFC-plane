@@ -10,7 +10,7 @@ import { ETabIndices } from "@plane/constants";
 import { ParentPropertyIcon } from "@plane/propel/icons";
 import type { ISearchIssueResponse, TIssue } from "@plane/types";
 import { CustomMenu } from "@plane/ui";
-import { renderFormattedPayloadDate, getDate, getTabIndex } from "@plane/utils";
+import { renderFormattedPayloadDateTime, getDate, getTabIndex } from "@plane/utils";
 // components
 import { CycleDropdown } from "@/components/dropdowns/cycle";
 import { DateDropdown } from "@/components/dropdowns/date";
@@ -80,6 +80,7 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       {/* Assignees */}
       <div className="h-7">
         <MemberDropdown
+          includeGuests
           projectId={projectId}
           value={data?.assignee_ids || []}
           onChange={(assigneeIds) => handleData("assignee_ids", assigneeIds)}
@@ -105,8 +106,9 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       {isVisible && (
         <div className="h-7">
           <DateDropdown
+            enableTime
             value={data?.start_date || null}
-            onChange={(date) => handleData("start_date", date ? renderFormattedPayloadDate(date) : "")}
+            onChange={(date) => handleData("start_date", date ? renderFormattedPayloadDateTime(date) : "")}
             buttonVariant="border-with-text"
             minDate={minDate ?? undefined}
             placeholder="Start date"
@@ -118,8 +120,9 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       {/* due date */}
       <div className="h-7">
         <DateDropdown
+          enableTime
           value={data?.target_date || null}
-          onChange={(date) => handleData("target_date", date ? renderFormattedPayloadDate(date) : "")}
+          onChange={(date) => handleData("target_date", date ? renderFormattedPayloadDateTime(date) : "")}
           buttonVariant="border-with-text"
           minDate={minDate ?? undefined}
           placeholder="Due date"

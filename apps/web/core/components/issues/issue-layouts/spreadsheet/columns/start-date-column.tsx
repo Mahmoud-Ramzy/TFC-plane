@@ -10,7 +10,7 @@ import { StartDatePropertyIcon } from "@plane/propel/icons";
 // types
 import type { TIssue } from "@plane/types";
 // components
-import { getDate, renderFormattedPayloadDate } from "@plane/utils";
+import { getDate, renderFormattedPayloadDateTime } from "@plane/utils";
 import { DateDropdown } from "@/components/dropdowns/date";
 // helpers
 
@@ -23,14 +23,18 @@ type Props = {
 
 export const SpreadsheetStartDateColumn = observer(function SpreadsheetStartDateColumn(props: Props) {
   const { issue, onChange, disabled, onClose } = props;
+  // Day-level boundary; the optional wall-clock time is ignored here.
+  const targetDay = getDate(issue.target_date);
+  const maxDate = targetDay ? new Date(targetDay.getFullYear(), targetDay.getMonth(), targetDay.getDate()) : undefined;
 
   return (
     <div className="h-11 border-b-[0.5px] border-subtle">
       <DateDropdown
+        enableTime
         value={issue.start_date}
-        maxDate={getDate(issue.target_date)}
+        maxDate={maxDate}
         onChange={(data) => {
-          const startDate = data ? renderFormattedPayloadDate(data) : null;
+          const startDate = data ? renderFormattedPayloadDateTime(data) : null;
           onChange(
             issue,
             { start_date: startDate },

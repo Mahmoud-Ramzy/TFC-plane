@@ -8,7 +8,7 @@ import { CalendarDays } from "lucide-react";
 // plane imports
 import { DueDatePropertyIcon, StartDatePropertyIcon } from "@plane/propel/icons";
 import type { TStateGroups } from "@plane/types";
-import { cn, renderFormattedDate, shouldHighlightIssueDueDate } from "@plane/utils";
+import { cn, renderWorkItemDateTime, shouldHighlightIssueDueDate } from "@plane/utils";
 
 type Props = {
   startDate: string | null;
@@ -34,13 +34,13 @@ export function WorkItemPreviewCardDate(props: Props) {
         >
           <CalendarDays className="size-3 shrink-0" />
           <span>
-            {renderFormattedDate(startDate)} - {renderFormattedDate(targetDate)}
+            {renderWorkItemDateTime(startDate)} - {renderWorkItemDateTime(targetDate)}
           </span>
         </div>
       ) : startDate ? (
         <div className="flex h-full items-center gap-1">
           <StartDatePropertyIcon className="size-3 shrink-0" />
-          <span>{renderFormattedDate(startDate)}</span>
+          <span>{renderWorkItemDateTime(startDate)}</span>
         </div>
       ) : (
         <div
@@ -49,7 +49,7 @@ export function WorkItemPreviewCardDate(props: Props) {
           })}
         >
           <DueDatePropertyIcon className="size-3 shrink-0" />
-          <span>{renderFormattedDate(targetDate)}</span>
+          <span>{renderWorkItemDateTime(targetDate)}</span>
         </div>
       )}
     </div>

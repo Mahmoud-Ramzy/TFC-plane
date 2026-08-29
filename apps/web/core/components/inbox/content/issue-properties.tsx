@@ -16,7 +16,7 @@ import {
 import { Tooltip } from "@plane/propel/tooltip";
 import type { TInboxDuplicateIssueDetails, TIssue } from "@plane/types";
 import { ControlLink } from "@plane/ui";
-import { getDate, renderFormattedPayloadDate, generateWorkItemLink } from "@plane/utils";
+import { getDate, renderFormattedPayloadDateTime, generateWorkItemLink } from "@plane/utils";
 // components
 import { DateDropdown } from "@/components/dropdowns/date";
 import { IntakeStateDropdown } from "@/components/dropdowns/intake-state/dropdown";
@@ -47,8 +47,9 @@ export const InboxIssueContentProperties = observer(function InboxIssueContentPr
   // store hooks
   const { currentProjectDetails } = useProject();
 
-  const minDate = issue.start_date ? getDate(issue.start_date) : null;
-  minDate?.setDate(minDate.getDate());
+  // Day-level boundary; the optional wall-clock time is ignored here.
+  const startDay = issue.start_date ? getDate(issue.start_date) : null;
+  const minDate = startDay ? new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate()) : null;
   if (!issue || !issue?.id) return <></>;
 
   const duplicateWorkItemLink = generateWorkItemLink({
@@ -94,6 +95,7 @@ export const InboxIssueContentProperties = observer(function InboxIssueContentPr
                 <span>Assignees</span>
               </div>
               <MemberDropdown
+                includeGuests
                 value={issue?.assignee_ids ?? []}
                 onChange={(val) =>
                   issue?.id && issueOperations.update(workspaceSlug, projectId, issue?.id, { assignee_ids: val })
@@ -144,12 +146,13 @@ export const InboxIssueContentProperties = observer(function InboxIssueContentPr
                 <span>Due date</span>
               </div>
               <DateDropdown
+                enableTime
                 placeholder="Add due date"
                 value={issue.target_date || null}
                 onChange={(val) =>
                   issue?.id &&
                   issueOperations.update(workspaceSlug, projectId, issue?.id, {
-                    target_date: val ? renderFormattedPayloadDate(val) : null,
+                    target_date: val ? renderFormattedPayloadDateTime(val) : null,
                   })
                 }
                 minDate={minDate ?? undefined}

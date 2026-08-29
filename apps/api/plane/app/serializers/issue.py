@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+# Python imports
+from datetime import datetime
+
 # Django imports
 from django.utils import timezone
 from django.core.validators import URLValidator
@@ -12,6 +15,12 @@ from django.db import IntegrityError
 from rest_framework import serializers
 
 # Module imports
+from plane.app.permissions import ROLE
+from plane.utils.workitem_datetime import (
+    WORKITEM_DATETIME_FIELD_PAIRS,
+    merge_workitem_datetime_representation,
+    split_workitem_datetime_payload,
+)
 from .base import BaseSerializer, DynamicBaseSerializer
 from .user import UserLiteSerializer
 from .state import StateLiteSerializer
@@ -113,24 +122,42 @@ class IssueCreateSerializer(BaseSerializer):
             "completed_at",
         ]
 
+    def to_internal_value(self, data):
+        # Split combined "YYYY-MM-DDTHH:mm" values into the date and time
+        # columns; date-only values explicitly clear the paired time.
+        return super().to_internal_value(split_workitem_datetime_payload(data))
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         assignee_ids = self.initial_data.get("assignee_ids")
         data["assignee_ids"] = assignee_ids if assignee_ids else []
         label_ids = self.initial_data.get("label_ids")
         data["label_ids"] = label_ids if label_ids else []
-        return data
+        # Merge start/due time columns back into combined ISO date-time strings.
+        return merge_workitem_datetime_representation(data, instance)
 
     def validate(self, attrs):
         allow_triage = self.context.get("allow_triage_state", False)
         state_manager = State.triage_objects if allow_triage else State.objects
 
-        if (
-            attrs.get("start_date", None) is not None
-            and attrs.get("target_date", None) is not None
-            and attrs.get("start_date", None) > attrs.get("target_date", None)
-        ):
-            raise serializers.ValidationError("Start date cannot exceed target date")
+        # Effective start/due values fall back to the persisted instance so
+        # partial updates are validated against the complete picture.
+        effective = {}
+        for date_key, time_key in WORKITEM_DATETIME_FIELD_PAIRS:
+            effective[date_key] = attrs.get(date_key, getattr(self.instance, date_key, None))
+            effective[time_key] = attrs.get(time_key, getattr(self.instance, time_key, None))
+
+        start_date, start_time = effective["start_date"], effective["start_time"]
+        target_date, target_time = effective["target_date"], effective["target_time"]
+
+        if start_date is not None and target_date is not None:
+            if start_time is not None and target_time is not None:
+                # Both sides carry a time: compare full date + time.
+                if datetime.combine(start_date, start_time) > datetime.combine(target_date, target_time):
+                    raise serializers.ValidationError("Start date cannot exceed target date")
+            elif start_date > target_date:
+                # Either side has no time: preserve the existing date-only comparison.
+                raise serializers.ValidationError("Start date cannot exceed target date")
 
         # Validate description content for security
         if "description_html" in attrs and attrs["description_html"]:
@@ -150,7 +177,7 @@ class IssueCreateSerializer(BaseSerializer):
         if attrs.get("assignee_ids", []):
             attrs["assignee_ids"] = ProjectMember.objects.filter(
                 project_id=self.context["project_id"],
-                role__gte=15,
+                role__gte=ROLE.GUEST.value,
                 is_active=True,
                 member_id__in=attrs["assignee_ids"],
             ).values_list("member_id", flat=True)
@@ -812,6 +839,10 @@ class IssueSerializer(DynamicBaseSerializer):
         ]
         read_only_fields = fields
 
+    def to_representation(self, instance):
+        # Merge start/due time columns back into combined ISO date-time strings.
+        return merge_workitem_datetime_representation(super().to_representation(instance), instance)
+
     def validate(self, data):
         if (
             data.get("state_id")
@@ -1015,6 +1046,10 @@ class IssueVersionDetailSerializer(BaseSerializer):
             "updated_by",
         ]
         read_only_fields = ["workspace", "project", "issue"]
+
+    def to_representation(self, instance):
+        # Merge start/due time columns back into combined ISO date-time strings.
+        return merge_workitem_datetime_representation(super().to_representation(instance), instance)
 
 
 class IssueDescriptionVersionDetailSerializer(BaseSerializer):
