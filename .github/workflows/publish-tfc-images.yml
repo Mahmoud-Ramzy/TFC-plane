@@ -47,6 +47,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # GHCR/Docker image names must be lowercase; repository owners may have
+      # uppercase characters (e.g. "Mahmoud-Ramzy"), so derive a lowercase prefix.
+      - name: Compute lowercase image prefix
+        id: prefix
+        run: echo "value=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -64,7 +70,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/tfc-plane-${{ matrix.name }}:latest
-            ghcr.io/${{ github.repository_owner }}/tfc-plane-${{ matrix.name }}:${{ github.sha }}
+            ${{ steps.prefix.outputs.value }}/tfc-plane-${{ matrix.name }}:latest
+            ${{ steps.prefix.outputs.value }}/tfc-plane-${{ matrix.name }}:${{ github.sha }}
           cache-from: type=gha,scope=tfc-plane-${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=tfc-plane-${{ matrix.name }}
