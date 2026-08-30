@@ -35,13 +35,14 @@ jobs:
           - name: live
             context: .
             dockerfile: ./apps/live/Dockerfile.live
-          # api/proxy build from their own directory.
+          # api/proxy build from their own directory (dockerfile paths are
+          # resolved relative to the repo root by buildx, not the context).
           - name: api
             context: ./apps/api
-            dockerfile: Dockerfile.api
+            dockerfile: ./apps/api/Dockerfile.api
           - name: proxy
             context: ./apps/proxy
-            dockerfile: Dockerfile.ce
+            dockerfile: ./apps/proxy/Dockerfile.ce
 
     steps:
       - name: Checkout
