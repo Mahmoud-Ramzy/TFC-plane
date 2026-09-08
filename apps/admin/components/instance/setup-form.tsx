@@ -357,7 +357,7 @@ export function InstanceSetupForm() {
                   href="https://developers.plane.so/self-hosting/telemetry"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-500 hover:text-blue-600 flex-shrink-0 text-13 font-medium"
+                  className="text-accent-primary hover:text-accent-secondary flex-shrink-0 text-13 font-medium"
                 >
                   See More
                 </a>

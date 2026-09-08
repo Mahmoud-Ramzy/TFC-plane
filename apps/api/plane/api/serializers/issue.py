@@ -726,6 +726,8 @@ class IssueCommentCreateSerializer(BaseSerializer):
         fields = [
             "comment_json",
             "comment_html",
+            "comment_type",
+            "voice_asset_id",
             "access",
             "external_source",
             "external_id",
@@ -755,6 +757,8 @@ class IssueCommentSerializer(BaseSerializer):
     """
 
     is_member = serializers.BooleanField(read_only=True)
+    voice_asset_id = serializers.SerializerMethodField()
+    voice_expired = serializers.SerializerMethodField()
 
     class Meta:
         model = IssueComment
@@ -769,6 +773,12 @@ class IssueCommentSerializer(BaseSerializer):
             "updated_at",
         ]
         exclude = ["comment_stripped", "comment_json"]
+
+    def get_voice_asset_id(self, obj):
+        return obj.voice_asset_id
+
+    def get_voice_expired(self, obj):
+        return obj.voice_expired
 
     def validate(self, data):
         if "comment_html" in data and data["comment_html"]:

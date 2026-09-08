@@ -207,6 +207,49 @@ export class FileService extends APIService {
       });
   }
 
+  /**
+   * Upload a voice-comment audio blob with explicit MIME metadata.
+   *
+   * The generic `uploadProjectAsset` detects the MIME type from the file
+   * signature (`file-type`), which maps the WebM container to `video/webm`.
+   * Voice recordings are declared as `audio/webm` by MediaRecorder, so we
+   * must control the metadata explicitly to keep the presigned Content-Type
+   * condition and the backend allow-list consistent (`audio/webm`).
+   */
+  async uploadVoiceCommentAsset(
+    workspaceSlug: string,
+    projectId: string,
+    entityInfo: TFileEntityInfo,
+    file: Blob
+  ): Promise<TFileSignedURLResponse> {
+    // Voice recordings carry their real MIME (audio/webm|audio/mp4|audio/ogg).
+    // The generic `uploadProjectAsset` detects the MIME from the file signature
+    // (`file-type`), which maps the WebM container to `video/webm`, so we must
+    // control the metadata explicitly to keep the presigned Content-Type
+    // condition and the backend allow-list consistent.
+    const mimeType = file.type?.split(";")[0] || "audio/webm";
+    const extension = mimeType === "audio/mp4" ? ".mp4" : mimeType === "audio/ogg" ? ".ogg" : ".webm";
+    const fileMetaData = {
+      name: `voice-comment-${Date.now()}${extension}`,
+      size: file.size,
+      type: mimeType,
+    };
+    return this.post(`/api/assets/v2/workspaces/${workspaceSlug}/projects/${projectId}/`, {
+      ...entityInfo,
+      ...fileMetaData,
+    })
+      .then(async (response) => {
+        const signedURLResponse: TFileSignedURLResponse = response?.data;
+        const fileUploadPayload = generateFileUploadPayload(signedURLResponse, file as File);
+        await this.fileUploadService.uploadFile(signedURLResponse.upload_data.url, fileUploadPayload);
+        await this.updateProjectAssetUploadStatus(workspaceSlug, projectId, signedURLResponse.asset_id);
+        return signedURLResponse;
+      })
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
   async deleteNewAsset(assetPath: string): Promise<void> {
     return this.delete(assetPath)
       .then((response) => response?.data)

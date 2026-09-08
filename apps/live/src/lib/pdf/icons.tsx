@@ -42,7 +42,7 @@ export const DocumentIcon = ({ size = 12, color = "#1e40af" }: IconProps) => (
 );
 
 // Link icon for page links and external links
-export const LinkIcon = ({ size = 12, color = "#2563eb" }: IconProps) => (
+export const LinkIcon = ({ size = 12, color = "#9A7618" }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 24 24">
     <Path
       d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"

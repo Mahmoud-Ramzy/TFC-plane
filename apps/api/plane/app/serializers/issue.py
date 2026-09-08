@@ -728,6 +728,8 @@ class IssueCommentSerializer(BaseSerializer):
     workspace_detail = WorkspaceLiteSerializer(read_only=True, source="workspace")
     comment_reactions = CommentReactionSerializer(read_only=True, many=True)
     is_member = serializers.BooleanField(read_only=True)
+    voice_asset_id = serializers.SerializerMethodField()
+    voice_expired = serializers.SerializerMethodField()
 
     class Meta:
         model = IssueComment
@@ -750,6 +752,34 @@ class IssueCommentSerializer(BaseSerializer):
             if sanitized_html is not None:
                 attrs["comment_html"] = sanitized_html
         return attrs
+
+    def create(self, validated_data):
+        voice_asset_id = self.initial_data.get("voice_asset_id") or self.initial_data.get("asset_id")
+        comment = super().create(validated_data)
+        if voice_asset_id and comment.comment_type == "VOICE":
+            # Link only a valid COMMENT_AUDIO asset that belongs to this exact
+            # workspace/project/issue, is actually uploaded, is not soft
+            # deleted, and is not already linked to another comment — anything
+            # else (foreign asset, issue attachment, deleted or never-uploaded
+            # file) must NOT be attached. If nothing links, the comment simply
+            # surfaces as expired (voice_asset_id -> None).
+            FileAsset.objects.filter(
+                id=voice_asset_id,
+                workspace_id=comment.workspace_id,
+                project_id=comment.project_id,
+                issue_id=comment.issue_id,
+                entity_type=FileAsset.EntityTypeContext.COMMENT_AUDIO,
+                is_uploaded=True,
+                is_deleted=False,
+                comment_id__isnull=True,
+            ).update(comment_id=comment.id)
+        return comment
+
+    def get_voice_asset_id(self, obj):
+        return obj.voice_asset_id
+
+    def get_voice_expired(self, obj):
+        return obj.voice_expired
 
 
 class IssueStateFlatSerializer(BaseSerializer):

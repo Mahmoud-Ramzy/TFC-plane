@@ -345,6 +345,7 @@ CELERY_IMPORTS = (
     "plane.bgtasks.file_asset_task",
     "plane.bgtasks.email_notification_task",
     "plane.bgtasks.cleanup_task",
+    "plane.bgtasks.voice_comment_task",
     "plane.license.bgtasks.telemetry_metrics",
     # management tasks
     "plane.bgtasks.dummy_data_task",
@@ -354,6 +355,10 @@ CELERY_IMPORTS = (
 )
 
 FILE_SIZE_LIMIT = int(os.environ.get("FILE_SIZE_LIMIT", 5242880))
+
+# Voice comments: retention (days after work item completion) and accepted audio MIME types
+VOICE_COMMENT_RETENTION_DAYS = int(os.environ.get("VOICE_COMMENT_RETENTION_DAYS", 3))
+VOICE_COMMENT_MIME_TYPES = ["audio/webm", "audio/mp4", "audio/ogg"]
 
 # Unsplash Access key
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")

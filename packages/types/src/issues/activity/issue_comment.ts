@@ -42,6 +42,10 @@ export type TIssueComment = {
   comment_stripped: string;
   comment_html: string;
   comment_json: JSONContent;
+  comment_type: "TEXT" | "VOICE";
+  voice_asset_id?: string | undefined;
+  voice_expired?: boolean | undefined;
+  voice_expires_at?: string | undefined;
   external_id: string | undefined;
   external_source: string | undefined;
   access: EIssueCommentAccessSpecifier;

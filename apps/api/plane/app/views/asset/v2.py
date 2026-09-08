@@ -19,7 +19,7 @@ from rest_framework.permissions import AllowAny
 
 # Module imports
 from ..base import BaseAPIView
-from plane.db.models import FileAsset, Workspace, Project, User, WorkspaceMember, ProjectMember
+from plane.db.models import FileAsset, Workspace, Project, User, WorkspaceMember, ProjectMember, Issue
 from plane.settings.storage import S3Storage
 from plane.app.permissions import allow_permission, ROLE
 from plane.utils.cache import invalidate_cache_directly
@@ -230,8 +230,18 @@ class WorkspaceFileAssetEndpoint(BaseAPIView):
         if entity_type == FileAsset.EntityTypeContext.PAGE_DESCRIPTION:
             return {"page_id": entity_id}
 
+        # Comment Description links to an existing comment. COMMENT_AUDIO
+        # assets are created BEFORE the IssueComment exists — `entity_identifier`
+        # is the ISSUE id (FileAsset.issue_id); comment_id is set later via
+        # `voice_asset_id` when the comment is created. An issue UUID must
+        # NEVER be written into FileAsset.comment_id.
+        if entity_type == FileAsset.EntityTypeContext.COMMENT_AUDIO:
+            return {"issue_id": entity_id}
+
         # Comment Description
-        if entity_type == FileAsset.EntityTypeContext.COMMENT_DESCRIPTION:
+        if entity_type in [
+            FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+        ]:
             return {"comment_id": entity_id}
         return {}
 
@@ -570,7 +580,18 @@ class ProjectAssetEndpoint(BaseAPIView):
         if entity_type == FileAsset.EntityTypeContext.PAGE_DESCRIPTION:
             return {"page_id": entity_id}
 
-        if entity_type == FileAsset.EntityTypeContext.COMMENT_DESCRIPTION:
+        # Comment Description links to an existing comment. COMMENT_AUDIO
+        # (voice comment) assets are created BEFORE the IssueComment exists:
+        # `entity_identifier` carries the owning ISSUE id (stored on
+        # FileAsset.issue_id) and comment_id is only set later by the
+        # IssueComment creation flow via `voice_asset_id`. An issue UUID must
+        # NEVER be written into FileAsset.comment_id.
+        if entity_type == FileAsset.EntityTypeContext.COMMENT_AUDIO:
+            return {"issue_id": entity_id}
+
+        if entity_type in [
+            FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+        ]:
             return {"comment_id": entity_id}
 
         if entity_type == FileAsset.EntityTypeContext.DRAFT_ISSUE_DESCRIPTION:
@@ -592,22 +613,40 @@ class ProjectAssetEndpoint(BaseAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Check if the file type is allowed
-        allowed_types = [
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/jpg",
-            "image/gif",
-        ]
+        # Check if the file type is allowed. Voice comments upload audio via
+        # the COMMENT_AUDIO entity type and use their own MIME allow-list.
+        if entity_type == FileAsset.EntityTypeContext.COMMENT_AUDIO:
+            allowed_types = settings.VOICE_COMMENT_MIME_TYPES
+            error_message = "Invalid file type. Only WebM, MP4 or OGG audio files are allowed."
+        else:
+            allowed_types = [
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "image/jpg",
+                "image/gif",
+            ]
+            error_message = "Invalid file type. Only JPEG, PNG, WebP, JPG and GIF files are allowed."
         if type not in allowed_types:
             return Response(
                 {
-                    "error": "Invalid file type. Only JPEG, PNG, WebP, JPG and GIF files are allowed.",
+                    "error": error_message,
                     "status": False,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Voice comment audio must be anchored to an existing issue of THIS
+        # project so that cross-project/cross-workspace linking is impossible
+        # and the asset can later be validated when the comment is created.
+        if entity_type == FileAsset.EntityTypeContext.COMMENT_AUDIO:
+            if not entity_identifier or not Issue.objects.filter(
+                id=entity_identifier, workspace__slug=slug, project_id=project_id
+            ).exists():
+                return Response(
+                    {"error": "Issue not found in this project.", "status": False},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         # Get the size limit
         size_limit = min(settings.FILE_SIZE_LIMIT, size)
@@ -745,7 +784,10 @@ class ProjectBulkAssetEndpoint(BaseAPIView):
             except IntegrityError:
                 pass
 
-        if asset.entity_type == FileAsset.EntityTypeContext.COMMENT_DESCRIPTION:
+        if asset.entity_type in [
+            FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+            FileAsset.EntityTypeContext.COMMENT_AUDIO,
+        ]:
             # For some cases, the bulk api is called after the comment is deleted
             # creating an integrity error
             try:
@@ -808,6 +850,10 @@ class DuplicateAssetEndpoint(BaseAPIView):
 
         # Comment Description
         if entity_type == FileAsset.EntityTypeContext.COMMENT_DESCRIPTION:
+            return {"comment_id": entity_id}
+
+        # Voice Comment audio
+        if entity_type == FileAsset.EntityTypeContext.COMMENT_AUDIO:
             return {"comment_id": entity_id}
 
         return {}
@@ -903,8 +949,21 @@ class ProjectAssetDownloadEndpoint(BaseAPIView):
                 workspace__slug=slug,
                 project_id=project_id,
                 is_uploaded=True,
+                is_deleted=False,
             )
         except FileAsset.DoesNotExist:
+            return Response(
+                {"error": "The requested asset could not be found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        disposition = request.GET.get("disposition", "attachment")
+        if disposition not in ["inline", "attachment"]:
+            disposition = "attachment"
+
+        # Voice comment audio may only be streamed once it is actually linked
+        # to an IssueComment — never while it is an orphan or pre-upload.
+        if asset.entity_type == FileAsset.EntityTypeContext.COMMENT_AUDIO and asset.comment_id is None:
             return Response(
                 {"error": "The requested asset could not be found."},
                 status=status.HTTP_404_NOT_FOUND,
@@ -913,7 +972,7 @@ class ProjectAssetDownloadEndpoint(BaseAPIView):
         storage = S3Storage(request=request)
         signed_url = storage.generate_presigned_url(
             object_name=asset.asset.name,
-            disposition="attachment",
+            disposition=disposition,
             filename=asset.attributes.get("name", uuid.uuid4().hex),
         )
 

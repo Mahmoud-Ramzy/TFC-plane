@@ -20,6 +20,7 @@ import { LiteTextEditor } from "@/components/editor/lite-text";
 // local imports
 import { CommentReactions } from "../comment-reaction";
 import { CommentCardEditForm } from "./edit-form";
+import { VoiceCommentDisplay } from "./voice-comment-display";
 import { EmojiReactionButton, EmojiReactionPicker } from "@plane/propel/emoji-reaction";
 import { Avatar, Tooltip } from "@plane/ui";
 import { useMember } from "@/hooks/store/use-member";
@@ -147,7 +148,7 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
           </div>
         )}
       </div>
-      {isEditing && setIsEditing ? (
+            {isEditing && setIsEditing ? (
         <CommentCardEditForm
           activityOperations={activityOperations}
           comment={comment}
@@ -158,6 +159,8 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
           workspaceId={workspaceId}
           workspaceSlug={workspaceSlug}
         />
+      ) : comment.comment_type === "VOICE" ? (
+        <VoiceCommentDisplay comment={comment} workspaceSlug={workspaceSlug} projectId={projectId} />
       ) : (
         <>
           <LiteTextEditor

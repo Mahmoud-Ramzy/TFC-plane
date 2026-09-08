@@ -92,6 +92,14 @@ app.conf.beat_schedule = {
         "task": "plane.bgtasks.exporter_expired_task.delete_old_s3_link",
         "schedule": crontab(hour=3, minute=45),  # UTC 03:45
     },
+    "check-every-day-to-delete-expired-voice-comments": {
+        "task": "plane.bgtasks.voice_comment_task.delete_expired_voice_comments",
+        "schedule": crontab(hour=4, minute=0),  # UTC 04:00
+    },
+    "check-every-hour-to-delete-orphan-voice-assets": {
+        "task": "plane.bgtasks.voice_comment_task.delete_orphan_voice_assets",
+        "schedule": crontab(minute=15),  # hourly at :15
+    },
 }
 
 

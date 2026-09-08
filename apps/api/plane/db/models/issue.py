@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 # Python import
+from datetime import timedelta
 from uuid import uuid4
 
 # Django imports
@@ -248,6 +249,7 @@ class Issue(ChangeTrackerMixin, ProjectBaseModel):
 
         if self.state.group == StateGroup.COMPLETED.value:
             self.completed_at = timezone.now()
+            self._refresh_voice_comment_expiry()
         else:
             self.completed_at = None
 
@@ -255,6 +257,20 @@ class Issue(ChangeTrackerMixin, ProjectBaseModel):
         if update_fields is not None:
             kwargs["update_fields"] = list(set(update_fields) | {"completed_at"})
         return kwargs
+
+    def _refresh_voice_comment_expiry(self):
+        """Reset the retention window of existing voice recordings on (re-)completion.
+
+        Only comments whose audio object still exists receive a fresh expiry;
+        already-expired recordings remain expired. Runs solely on completion
+        transitions (guarded by the state-change check above), so unrelated
+        edits never touch or extend the expiry."""
+        retention = timedelta(days=getattr(settings, "VOICE_COMMENT_RETENTION_DAYS", 3))
+        self.issue_comments.filter(
+            comment_type="VOICE",
+            assets__entity_type="COMMENT_AUDIO",
+            assets__is_deleted=False,
+        ).update(voice_expires_at=self.completed_at + retention)
 
 
 class IssueBlocker(ProjectBaseModel):
@@ -477,8 +493,51 @@ class IssueComment(ChangeTrackerMixin, ProjectBaseModel):
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="parent_issue_comment"
     )
+    # Voice comments: audio binaries live in object storage (FileAsset with
+    # entity_type=COMMENT_AUDIO); PostgreSQL stores metadata/references only.
+    comment_type = models.CharField(
+        choices=[("TEXT", "TEXT"), ("VOICE", "VOICE")],
+        default="TEXT",
+        max_length=20,
+    )
+    voice_expires_at = models.DateTimeField(null=True, blank=True)
 
     TRACKED_FIELDS = ["comment_stripped", "comment_json", "comment_html"]
+
+    @property
+    def voice_asset(self):
+        from plane.db.models import FileAsset
+
+        return self.assets.filter(
+            entity_type=FileAsset.EntityTypeContext.COMMENT_AUDIO,
+            is_deleted=False,
+            is_uploaded=True,
+        ).first()
+
+    @property
+    def voice_asset_id(self):
+        if self.comment_type != "VOICE":
+            return None
+        asset = self.voice_asset
+        return str(asset.id) if asset else None
+
+    @property
+    def voice_expired(self):
+        if self.comment_type != "VOICE":
+            return False
+        return self.voice_asset is None
+
+    def _compute_initial_voice_expiry(self):
+        """Expiry for a voice comment created after the issue completed.
+
+        The retention window is anchored to the issue completion timestamp.
+        If that window has already passed the recording is born expired —
+        no artificial grace period is granted."""
+        completed_at = Issue.objects.filter(pk=self.issue_id).values_list("completed_at", flat=True).first()
+        if completed_at is None:
+            return None
+        retention = timedelta(days=getattr(settings, "VOICE_COMMENT_RETENTION_DAYS", 3))
+        return completed_at + retention
 
     def save(self, *args, **kwargs):
         """
@@ -490,6 +549,11 @@ class IssueComment(ChangeTrackerMixin, ProjectBaseModel):
 
         self.comment_stripped = strip_tags(self.comment_html) if self.comment_html != "" else ""
         is_creating = self._state.adding
+
+        # Voice comments on an already-completed issue get an expiry relative
+        # to the completion timestamp (never extended by later edits).
+        if is_creating and self.comment_type == "VOICE" and self.issue_id and self.voice_expires_at is None:
+            self.voice_expires_at = self._compute_initial_voice_expiry()
 
         # Prepare description defaults
         description_defaults = {

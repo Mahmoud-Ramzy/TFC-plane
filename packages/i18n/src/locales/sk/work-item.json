@@ -148,6 +148,23 @@
             }
           }
         }
+      },
+      "voice": {
+        "record": "Record voice comment",
+        "recording": "Recording…",
+        "stop": "Stop",
+        "cancel": "Cancel",
+        "submit": "Add voice comment",
+        "preview": "Preview",
+        "expired": "Recording expired",
+        "expired_description": "This voice recording has expired and is no longer available.",
+        "uploading": "Uploading…",
+        "requesting": "Requesting microphone…",
+        "permission_denied": "Microphone permission denied. Enable it in your browser to record a voice comment.",
+        "mic_unavailable": "No microphone is available. Please check your audio devices.",
+        "error": "Unable to submit the voice comment. Please try again.",
+        "size_error": "Recording too large. Keep it under 5 MB.",
+        "support_error": "Your browser does not support audio recording."
       }
     },
     "empty_state": {

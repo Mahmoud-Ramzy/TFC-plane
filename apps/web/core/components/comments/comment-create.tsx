@@ -14,6 +14,7 @@ import type { TIssueComment, TCommentsOperations } from "@plane/types";
 import { cn, isCommentEmpty } from "@plane/utils";
 // components
 import { LiteTextEditor } from "@/components/editor/lite-text";
+import { VoiceCommentCreate } from "./voice-comment-create";
 // hooks
 import { useWorkspace } from "@/hooks/store/use-workspace";
 // services
@@ -153,6 +154,15 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
           />
         )}
       />
+      <div className="px-2 pt-1 pb-2">
+        <VoiceCommentCreate
+          workspaceSlug={workspaceSlug}
+          projectId={projectId?.toString() ?? ""}
+          issueId={entityId}
+          activityOperations={activityOperations}
+          onSubmitCallback={onSubmitCallback}
+        />
+      </div>
     </div>
   );
 });
